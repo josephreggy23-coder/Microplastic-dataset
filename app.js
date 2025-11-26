@@ -1,5 +1,4 @@
 const { useState } = React;
-const { Download, Play, AlertCircle, CheckCircle } = lucide;
 
 const MicroplasticDatasetGenerator = () => {
   const [generating, setGenerating] = useState(false);
@@ -7,42 +6,19 @@ const MicroplasticDatasetGenerator = () => {
   const [filtrationDataset, setFiltrationDataset] = useState(null);
   const [progress, setProgress] = useState(0);
 
-  // Polymer properties based on literature
   const polymerProperties = {
-    PE: {
-      quantumYield: 0.38,
-      bindingEfficiency: 0.85,
-      baselineFluorescence: 1200,
-      sizeCoefficient: 1.0
-    },
-    PP: {
-      quantumYield: 0.35,
-      bindingEfficiency: 0.80,
-      baselineFluorescence: 1100,
-      sizeCoefficient: 0.95
-    },
-    PS: {
-      quantumYield: 0.42,
-      bindingEfficiency: 0.90,
-      baselineFluorescence: 1400,
-      sizeCoefficient: 1.05
-    },
-    PET: {
-      quantumYield: 0.33,
-      bindingEfficiency: 0.75,
-      baselineFluorescence: 1000,
-      sizeCoefficient: 0.90
-    }
+    PE: { quantumYield: 0.38, bindingEfficiency: 0.85, baselineFluorescence: 1200, sizeCoefficient: 1.0 },
+    PP: { quantumYield: 0.35, bindingEfficiency: 0.80, baselineFluorescence: 1100, sizeCoefficient: 0.95 },
+    PS: { quantumYield: 0.42, bindingEfficiency: 0.90, baselineFluorescence: 1400, sizeCoefficient: 1.05 },
+    PET: { quantumYield: 0.33, bindingEfficiency: 0.75, baselineFluorescence: 1000, sizeCoefficient: 0.90 }
   };
 
-  // Photodiode parameters
-  const responsivity = 0.4; // A/W
-  const darkCurrent = 2e-9; // A
-  const transimpedanceGain = 1e6; // Ω
+  const responsivity = 0.4;
+  const darkCurrent = 2e-9;
+  const transimpedanceGain = 1e6;
   const adcBits = 12;
   const adcVoltageRange = 5.0;
 
-  // Generate log-normal distributed particle sizes
   const generateParticleSizes = (n, mean = 500, std = 200) => {
     const sizes = [];
     const mu = Math.log(mean);
@@ -59,27 +35,16 @@ const MicroplasticDatasetGenerator = () => {
     return sizes;
   };
 
-  // Calculate fluorescence signal
   const calculateFluorescence = (sizes, polymerType, nileRedConc, excitationWl) => {
     const props = polymerProperties[polymerType];
-    
-    // Nile Red concentration effect (saturation curve)
     const concFactor = nileRedConc / (nileRedConc + 2.0);
-    
-    // Excitation wavelength efficiency (peak at 550 nm)
     const wlFactor = Math.exp(-Math.pow(excitationWl - 550, 2) / (2 * 40 * 40));
     
     let totalSignal = 0;
     sizes.forEach(size => {
-      // Surface area scaling
       const relativeIntensity = Math.pow(size / 500, 2) * (0.85 + Math.random() * 0.3);
-      
-      // Calculate photocurrent
-      const photocurrent = props.baselineFluorescence * props.quantumYield * 
-                          props.bindingEfficiency * relativeIntensity * 
-                          concFactor * wlFactor * responsivity * 1e-9;
-      
-      // Convert to voltage
+      const photocurrent = props.baselineFluorescence * props.quantumYield * props.bindingEfficiency * 
+                          relativeIntensity * concFactor * wlFactor * responsivity * 1e-9;
       const voltage = photocurrent * transimpedanceGain;
       totalSignal += voltage;
     });
@@ -87,49 +52,36 @@ const MicroplasticDatasetGenerator = () => {
     return totalSignal;
   };
 
-  // Add realistic noise
   const addNoise = (signal) => {
     const shotNoise = (Math.random() - 0.5) * 0.002 * Math.sqrt(Math.abs(signal));
     const darkNoise = (Math.random() - 0.5) * darkCurrent * transimpedanceGain * 0.2;
     const johnsonNoise = (Math.random() - 0.5) * 0.002;
     const flickerNoise = (Math.random() - 0.5) * 0.001;
-    
     return signal + shotNoise + darkNoise + johnsonNoise + flickerNoise;
   };
 
-  // Digitize signal
   const digitizeSignal = (analogVoltage) => {
     const clipped = Math.max(0, Math.min(adcVoltageRange, analogVoltage));
     const maxCount = Math.pow(2, adcBits) - 1;
     return Math.round((clipped / adcVoltageRange) * maxCount);
   };
 
-  // Generate single measurement
   const generateMeasurement = (nParticles, polymerType, nileRedConc, excitationWl) => {
     const sizes = generateParticleSizes(nParticles);
     const meanSize = sizes.reduce((a, b) => a + b, 0) / sizes.length;
     const stdSize = Math.sqrt(sizes.reduce((sq, n) => sq + Math.pow(n - meanSize, 2), 0) / sizes.length);
-    
-    // Background from organic matter
     const background = Math.random() * 0.1 + 0.05;
-    
     const totalSignal = calculateFluorescence(sizes, polymerType, nileRedConc, excitationWl);
     const totalAnalog = totalSignal + background;
     const noisySignal = addNoise(totalAnalog);
     const digitalCounts = digitizeSignal(noisySignal);
     
     return {
-      meanSize,
-      stdSize,
-      totalAnalog,
-      noisySignal,
-      digitalCounts,
-      background,
+      meanSize, stdSize, totalAnalog, noisySignal, digitalCounts, background,
       signalToNoise: totalAnalog / 0.005
     };
   };
 
-  // Generate full dataset
   const generateDataset = async () => {
     setGenerating(true);
     setProgress(0);
@@ -169,11 +121,7 @@ const MicroplasticDatasetGenerator = () => {
               });
               
               setProgress(Math.round((sampleId / totalSamples) * 50));
-              
-              // Allow UI to update
-              if (sampleId % 50 === 0) {
-                await new Promise(resolve => setTimeout(resolve, 0));
-              }
+              if (sampleId % 50 === 0) await new Promise(resolve => setTimeout(resolve, 0));
             }
           }
         }
@@ -182,7 +130,6 @@ const MicroplasticDatasetGenerator = () => {
     
     setDataset(mainData);
     
-    // Generate filtration dataset
     const filtrationData = [];
     let filtrationId = 0;
     const initialCounts = [100, 500, 1000, 5000];
@@ -191,19 +138,14 @@ const MicroplasticDatasetGenerator = () => {
     for (const polymer of polymers) {
       for (const initialCount of initialCounts) {
         for (let rep = 0; rep < 5; rep++) {
-          // Before filtration
           const before = generateMeasurement(initialCount, polymer, 5.0, 488);
-          
-          // After filtration (size-dependent retention)
           const beforeSizes = generateParticleSizes(initialCount);
           const afterSizes = beforeSizes.filter(size => {
             const retentionProb = filterEfficiency * (1 - Math.exp(-size / 1000));
             return Math.random() > retentionProb;
           });
-          
           const afterCount = afterSizes.length;
           const after = generateMeasurement(afterCount, polymer, 5.0, 488);
-          
           const removalEff = (initialCount - afterCount) / initialCount;
           
           filtrationData.push({
@@ -229,10 +171,8 @@ const MicroplasticDatasetGenerator = () => {
     setGenerating(false);
   };
 
-  // Convert to CSV
   const convertToCSV = (data) => {
     if (!data || data.length === 0) return '';
-    
     const headers = Object.keys(data[0]);
     const csvRows = [
       headers.join(','),
@@ -243,11 +183,9 @@ const MicroplasticDatasetGenerator = () => {
         }).join(',')
       )
     ];
-    
     return csvRows.join('\n');
   };
 
-  // Download CSV
   const downloadCSV = (data, filename) => {
     const csv = convertToCSV(data);
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -259,119 +197,179 @@ const MicroplasticDatasetGenerator = () => {
     window.URL.revokeObjectURL(url);
   };
 
-  return React.createElement('div', { className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8" },
-    React.createElement('div', { className: "max-w-6xl mx-auto" },
-      React.createElement('div', { className: "bg-white rounded-lg shadow-xl p-8" },
-        React.createElement('h1', { className: "text-3xl font-bold text-gray-800 mb-2" },
-          "Microplastic Fluorescence Dataset Generator"
-        ),
-        React.createElement('p', { className: "text-gray-600 mb-6" },
-          "Generate realistic synthetic photodiode response data for Nile Red-stained microplastics"
-        ),
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-white rounded-lg shadow-xl p-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            Microplastic Fluorescence Dataset Generator
+          </h1>
+          <p className="text-gray-600 mb-6">
+            Generate realistic synthetic photodiode response data for Nile Red-stained microplastics
+          </p>
 
-        React.createElement('div', { className: "bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6" },
-          React.createElement('div', { className: "flex items-start gap-3" },
-            React.createElement(AlertCircle, { className: "text-blue-600 mt-0.5 flex-shrink-0", size: 20 }),
-            React.createElement('div', { className: "text-sm text-blue-900" },
-              React.createElement('p', { className: "font-semibold mb-1" }, "Dataset Specifications:"),
-              React.createElement('ul', { className: "list-disc list-inside space-y-1 ml-2" },
-                React.createElement('li', null, React.createElement('strong', null, "Main Dataset:"), " 1,344 samples (4 polymers × 7 concentrations × 4 Nile Red conc × 3 wavelengths × 3 replicates)"),
-                React.createElement('li', null, React.createElement('strong', null, "Filtration Dataset:"), " 80 before/after pairs (4 polymers × 4 initial concentrations × 5 replicates)"),
-                React.createElement('li', null, React.createElement('strong', null, "Features:"), " Realistic noise models, size distributions, polymer-specific properties")
-              )
-            )
-          )
-        ),
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <lucide-react iconName="alert-circle" className="text-blue-600 mt-0.5" size="20"></lucide-react>
+              <div className="text-sm text-blue-900">
+                <p className="font-semibold mb-1">Dataset Specifications:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li><strong>Main Dataset:</strong> 1,344 samples (4 polymers × 7 concentrations × 4 Nile Red conc × 3 wavelengths × 3 replicates)</li>
+                  <li><strong>Filtration Dataset:</strong> 80 before/after pairs (4 polymers × 4 initial concentrations × 5 replicates)</li>
+                  <li><strong>Features:</strong> Realistic noise models, size distributions, polymer-specific properties</li>
+                </ul>
+              </div>
+            </div>
+          </div>
 
-        React.createElement('button', {
-          onClick: generateDataset,
-          disabled: generating,
-          className: "w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-semibold py-4 rounded-lg transition-colors flex items-center justify-center gap-2 mb-6"
-        },
-          generating ? 
-            React.createElement(React.Fragment, null,
-              React.createElement('div', { className: "animate-spin rounded-full h-5 w-5 border-b-2 border-white" }),
-              `Generating... ${progress}%`
-            ) :
-            React.createElement(React.Fragment, null,
-              React.createElement(Play, { size: 20 }),
-              "Generate Datasets"
-            )
-        ),
+          <button
+            onClick={generateDataset}
+            disabled={generating}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-semibold py-4 rounded-lg transition-colors flex items-center justify-center gap-2 mb-6"
+          >
+            {generating ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                Generating... {progress}%
+              </>
+            ) : (
+              <>
+                <lucide-react iconName="play" size="20"></lucide-react>
+                Generate Datasets
+              </>
+            )}
+          </button>
 
-        generating && React.createElement('div', { className: "mb-6" },
-          React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-3 overflow-hidden" },
-            React.createElement('div', {
-              className: "bg-indigo-600 h-full transition-all duration-300 rounded-full",
-              style: { width: `${progress}%` }
-            })
-          )
-        ),
+          {generating && (
+            <div className="mb-6">
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div 
+                  className="bg-indigo-600 h-full transition-all duration-300 rounded-full"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
 
-        dataset && filtrationDataset && !generating && React.createElement('div', { className: "space-y-4" },
-          React.createElement('div', { className: "bg-green-50 border border-green-200 rounded-lg p-4" },
-            React.createElement('div', { className: "flex items-center gap-3" },
-              React.createElement(CheckCircle, { className: "text-green-600", size: 24 }),
-              React.createElement('div', null,
-                React.createElement('p', { className: "font-semibold text-green-900" }, "Datasets Generated Successfully!"),
-                React.createElement('p', { className: "text-sm text-green-700" },
-                  `Main dataset: ${dataset.length} samples | Filtration dataset: ${filtrationDataset.length} samples`
-                )
-              )
-            )
-          ),
+          {dataset && filtrationDataset && !generating && (
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <lucide-react iconName="check-circle" className="text-green-600" size="24"></lucide-react>
+                  <div>
+                    <p className="font-semibold text-green-900">Datasets Generated Successfully!</p>
+                    <p className="text-sm text-green-700">
+                      Main dataset: {dataset.length} samples | Filtration dataset: {filtrationDataset.length} samples
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-          React.createElement('div', { className: "grid md:grid-cols-2 gap-4" },
-            React.createElement('button', {
-              onClick: () => downloadCSV(dataset, 'microplastic_main_dataset.csv'),
-              className: "bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-            },
-              React.createElement(Download, { size: 20 }),
-              "Download Main Dataset"
-            ),
-            React.createElement('button', {
-              onClick: () => downloadCSV(filtrationDataset, 'microplastic_filtration_dataset.csv'),
-              className: "bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-            },
-              React.createElement(Download, { size: 20 }),
-              "Download Filtration Dataset"
-            )
-          )
-        )
-      )
-    )
+              <div className="grid md:grid-cols-2 gap-4">
+                <button
+                  onClick={() => downloadCSV(dataset, 'microplastic_main_dataset.csv')}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <lucide-react iconName="download" size="20"></lucide-react>
+                  Download Main Dataset
+                </button>
+                
+                <button
+                  onClick={() => downloadCSV(filtrationDataset, 'microplastic_filtration_dataset.csv')}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <lucide-react iconName="download" size="20"></lucide-react>
+                  Download Filtration Dataset
+                </button>
+              </div>
+
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Main Dataset Preview (First 10 rows)</h3>
+                <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {Object.keys(dataset[0]).slice(0, 8).map(key => (
+                          <th key={key} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {key.replace(/_/g, ' ')}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {dataset.slice(0, 10).map((row, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          {Object.values(row).slice(0, 8).map((val, i) => (
+                            <td key={i} className="px-3 py-2 whitespace-nowrap text-gray-700">
+                              {val}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4 mt-6">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-2">Main Dataset Statistics</h4>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    <p>Total Samples: {dataset.length}</p>
+                    <p>Polymer Types: PE, PP, PS, PET</p>
+                    <p>Particle Counts: 10-1000 particles/mL</p>
+                    <p>Nile Red Concentrations: 0.5-10.0 µg/mL</p>
+                    <p>Excitation Wavelengths: 450, 488, 520 nm</p>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-2">Filtration Dataset Statistics</h4>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    <p>Total Samples: {filtrationDataset.length}</p>
+                    <p>Initial Concentrations: 100-5000 particles/mL</p>
+                    <p>Filter Efficiency: ~95% (size-dependent)</p>
+                    <p>Replicates: 5 per condition</p>
+                    <p>Measurements: Before & After filtration pairs</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow-xl p-8 mt-6">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">How to Use This Dataset</h2>
+          <div className="space-y-4 text-gray-700">
+            <div>
+              <h3 className="font-semibold text-lg mb-2">1. Generate & Download</h3>
+              <p>Click "Generate Datasets" to create realistic synthetic data. Download both CSV files.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg mb-2">2. Analysis Options</h3>
+              <ul className="list-disc list-inside ml-4 space-y-1">
+                <li>Import into Python (pandas), R, or Excel for analysis</li>
+                <li>Build machine learning models to classify polymer types</li>
+                <li>Analyze filtration efficiency across different conditions</li>
+                <li>Create visualizations showing concentration vs. signal relationships</li>
+                <li>Develop calibration curves for quantification</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg mb-2">3. Key Variables</h3>
+              <ul className="list-disc list-inside ml-4 space-y-1">
+                <li><strong>digital_counts:</strong> ADC output (0-4095) - your primary measurement</li>
+                <li><strong>particle_count:</strong> Actual microplastic concentration</li>
+                <li><strong>polymer_type:</strong> PE, PP, PS, or PET for classification</li>
+                <li><strong>signal_to_noise_ratio:</strong> Quality metric for each measurement</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
-ReactDOM.render(
-  React.createElement(MicroplasticDatasetGenerator),
-  document.getElementById('root')
-);
-```
-
----
-
-## **PART 4: Enable GitHub Pages**
-
-### **Step 1: Go to Settings**
-1. In your repository, click **"Settings"** tab (top right, next to Insights)
-2. In the left sidebar, scroll down and click **"Pages"** (under "Code and automation")
-
-### **Step 2: Configure Pages**
-1. Under **"Source"**, select **"Deploy from a branch"**
-2. Under **"Branch"**:
-   - Select **"main"** (or "master" if that's what yours says)
-   - Leave folder as **"/ (root)"**
-3. Click **"Save"**
-
-### **Step 3: Wait for Deployment**
-1. Refresh the page after 30-60 seconds
-2. You'll see a box at the top that says: 
-   > "Your site is live at https://yourusername.github.io/microplastic-generator/"
-3. Click that link to visit your website!
-
----
-
-## **PART 5: Using Your Website**
-
-**Your website URL will be:**
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<MicroplasticDatasetGenerator />);
